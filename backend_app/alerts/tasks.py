@@ -26,6 +26,7 @@ def send_slack_message_task(self, message, apitoken, channel):
 @shared_task(bind=True, acks_late=True)
 def slack_alert_vuln_task(self, vuln_id, type="new"):
     from vulns.models import Vuln
+    from vulns.utils import _is_vuln_monitored
     from organizations.models import Organization
 
     logger.debug("Entering 'slack_alert_vuln_task'")
@@ -55,8 +56,8 @@ def slack_alert_vuln_task(self, vuln_id, type="new"):
 
     affected_products = ", ".join(["*{}* ({})".format(p.name.replace('_', ' ').title(), p.vendor.name.replace('_', ' ').title()) for p in vuln.products.all()])
 
-    for org in Organization.objects.all():
-        if org.org_settings.alerts_slack_enabled is True and org.org_settings.alerts_slack['update_vuln'] is True and org.org_settings.alerts_slack['url'] != "":
+    for org in Organization.objects.filter(is_active=True):
+        if org.org_settings.alerts_slack_enabled is True and org.org_settings.alerts_slack['update_vuln'] is True and org.org_settings.alerts_slack['url'] != "" and _is_vuln_monitored(vuln, org):
             webhook_url = org.org_settings.alerts_slack['url']
             # slack_data = {'text': "Vulnerability changes detected: [PH-{}@{}] {}".format(vuln.id, vuln.score, vuln.summary)}
             banner = "[{}] *{}* - Score:*{}* - Exploits:*{}* - CVSSv2:*{}*".format(
